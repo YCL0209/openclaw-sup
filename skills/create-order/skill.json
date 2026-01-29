@@ -1,0 +1,16 @@
+{
+  "name": "create-order",
+  "version": "1.0.0",
+  "displayName": "订单创建",
+  "description": "通过 LINE 与 ERP 系统交互，创建订单",
+  "commands": [
+    {
+      "name": "/order",
+      "description": "启动订单建立流程",
+      "main": "index.js",
+      "export": "default"
+    }
+  ],
+  "author": "Clawdbot",
+  "license": "MIT"
+}

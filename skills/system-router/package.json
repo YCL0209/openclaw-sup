@@ -1,0 +1,7 @@
+{
+  "name": "system-router",
+  "version": "1.0.0",
+  "description": "System intent router for Clawdbot - routes messages to appropriate skills",
+  "main": "index.js",
+  "type": "module"
+}
