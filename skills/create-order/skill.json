@@ -8,7 +8,7 @@
       "name": "/order",
       "description": "启动订单建立流程",
       "main": "index.js",
-      "export": "default"
+      "export": "createOrder"
     }
   ],
   "author": "Clawdbot",

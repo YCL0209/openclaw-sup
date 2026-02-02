@@ -2,9 +2,5 @@
   "name": "create-order",
   "version": "1.0.0",
   "description": "Interactive order creation skill for Clawdbot",
-  "main": "index.ts",
-  "type": "module",
-  "scripts": {
-    "build": "tsc"
-  }
+  "main": "index.js"
 }

@@ -10,8 +10,6 @@
  * 6. Return result (order number & status)
  */
 
-const fetch = require('node-fetch');
-
 // ========================================
 // Configuration
 // ========================================
@@ -167,8 +165,8 @@ async function createOrder(message, context, claudeApi) {
     const parsed = await parseOrderMessage(message, claudeApi);
 
     if (!parsed || parsed.confidence < 0.5) {
-      return 'Unable to understand order details. Please provide: customer name, items, and quantities.\n'
-        + 'Example: "/order John Doe A product x2 B product x1"';
+      return '無法理解訂單內容。請提供：客戶名稱、品項和數量。\n'
+        + '範例："/order 王小明 A產品x2 B產品x1"';
     }
 
     console.log('[Order] Parsed order:', JSON.stringify(parsed, null, 2));
@@ -178,7 +176,7 @@ async function createOrder(message, context, claudeApi) {
     const customers = await erpFetch('/api/customers');
     
     if (!customers.success) {
-      return 'Failed to connect to ERP system. Please try again later.';
+      return '無法連接 ERP 系統。請稍後再試。';
     }
 
     const matchedCustomer = findCustomer(parsed.customerName, customers.data);
@@ -192,12 +190,12 @@ async function createOrder(message, context, claudeApi) {
         allCustomers: customers.data
       };
 
-      return `Customer "${parsed.customerName}" not found.\n`
-        + `\nOptions:\n`
-        + `1️⃣ Create new customer "${parsed.customerName}"\n`
-        + `2️⃣ Re-enter customer name\n`
-        + `3️⃣ Cancel\n`
-        + `\nReply with 1, 2, or 3`;
+      return `找不到客戶「${parsed.customerName}」\n`
+        + `\n請選擇：\n`
+        + `1️⃣ 建立新客戶「${parsed.customerName}」\n`
+        + `2️⃣ 重新輸入客戶名稱\n`
+        + `3️⃣ 取消\n`
+        + `\n請回覆 1、2 或 3`;
     }
 
     // Step 3: Build order data and show confirmation
@@ -205,7 +203,7 @@ async function createOrder(message, context, claudeApi) {
 
   } catch (error) {
     console.error('[Order] Error:', error);
-    return `System error: ${error.message}\nPlease try again later.`;
+    return `系統錯誤：${error.message}\n請稍後再試。`;
   }
 }
 
@@ -219,18 +217,22 @@ async function parseOrderMessage(message, claudeApi) {
   if (claudeApi && claudeApi.complete) {
     try {
       const response = await claudeApi.complete({
-        prompt: `Parse this order message and extract customer name, items, quantity, address, and notes.
+        prompt: `Parse this order message and extract customer name, items, quantity, price, address, and notes.
         
 Message: "${message}"
 
 Return JSON with format:
 {
   "customerName": "customer name",
-  "items": [{"name": "product name", "quantity": number}, ...],
+  "items": [{"name": "product name", "quantity": number, "price": number or 0}, ...],
   "address": "address or null",
   "note": "notes or null",
   "confidence": 0.0 to 1.0
 }
+
+Price format examples:
+- "ABC電線x1@500" → price: 500
+- "ABC電線x1" → price: 0 (not specified)
 
 Only return valid JSON, no other text.`,
         max_tokens: 500
@@ -263,13 +265,13 @@ function simpleParseOrder(message) {
   }
 
   // Try to extract customer name (usually first few words before items)
-  // and items (patterns like "product x2" or "product 2" or "2 products")
+  // and items (patterns with optional price: "product x2@500" or "product x2" or "product 2")
   
   const items = [];
   const itemPatterns = [
-    /([^x]*?)x(\d+)/gi,           // A产品x2
-    /(\d+)\s*(?:个|个)?([^,，\d]+)/gi, // 2个A产品
-    /([^,，\d]+?)\s*(\d+)/gi       // A产品 2
+    /([^x@,，]*?)x(\d+)(?:@(\d+))?/gi,           // A产品x2@500 or A产品x2
+    /(\d+)\s*(?:个)?([^,，\d@]+)(?:@(\d+))?/gi,  // 2个A产品@500 or 2个A产品
+    /([^,，\d@]+?)\s*(\d+)(?:@(\d+))?/gi         // A产品 2@500 or A产品 2
   ];
 
   let itemsText = text;
@@ -278,12 +280,17 @@ function simpleParseOrder(message) {
     let match;
     while ((match = pattern.exec(text)) !== null) {
       const product = match[1]?.trim() || match[2]?.trim();
-      const qty = parseInt(match[match.length - 1]);
+      const qty = parseInt(match[2] || match[match.length - 2]);
+      const price = match[3] ? parseInt(match[3]) : 0;
       
       if (product && !isNaN(qty) && qty > 0) {
         // Check if not already added
         if (!items.find(i => i.name.toLowerCase() === product.toLowerCase())) {
-          items.push({ name: product, quantity: qty });
+          items.push({ 
+            name: product, 
+            quantity: qty,
+            price: price || 0
+          });
           itemsText = itemsText.replace(match[0], '');
         }
       }
@@ -340,22 +347,33 @@ function findCustomer(searchName, customers) {
  * Build order confirmation message
  */
 function buildOrderConfirmation(parsedOrder, customer, context) {
+  // Calculate total
+  const totalAmount = parsedOrder.items.reduce((sum, item) => {
+    return sum + (item.quantity * (item.price || 0));
+  }, 0);
+
+  // Build items summary with prices
   const itemsSummary = parsedOrder.items
-    .map(i => `${i.name} × ${i.quantity}`)
-    .join(', ');
+    .map(i => {
+      const priceInfo = i.price > 0 ? ` @ $${i.price}` : ' (價格未填)';
+      const lineTotal = i.price > 0 ? ` = $${i.quantity * i.price}` : '';
+      return `  • ${i.name} × ${i.quantity}${priceInfo}${lineTotal}`;
+    })
+    .join('\n');
 
   const address = parsedOrder.address || customer.address || 'Not specified';
-  const paymentMethod = customer.payment?.method || 'Cash';
+  const paymentMethod = customer.payment?.method || '現金';
 
-  const confirmMsg = `✅ Order Summary\n`
+  const confirmMsg = `✅ 訂單確認\n`
     + `━━━━━━━━━━━━━━━━\n`
-    + `👤 Customer: ${customer.name} (${customer.customerCode || 'N/A'})\n`
-    + `📦 Items: ${itemsSummary}\n`
-    + `📍 Address: ${address}\n`
-    + `💳 Payment: ${paymentMethod}\n`
-    + (parsedOrder.note ? `📝 Notes: ${parsedOrder.note}\n` : '')
+    + `👤 客戶：${customer.name} (${customer.customerCode || '無'})\n`
+    + `📦 品項：\n${itemsSummary}\n`
+    + `💰 總額：$${totalAmount}${totalAmount === 0 ? ' (待補價格)' : ''}\n`
+    + `📍 地址：${address}\n`
+    + `💳 付款：${paymentMethod}\n`
+    + (parsedOrder.note ? `📝 備註：${parsedOrder.note}\n` : '')
     + `━━━━━━━━━━━━━━━━\n`
-    + `Reply "confirm" to create order, or "cancel"`;
+    + `請回覆「確認」以建立訂單，或「取消」`;
 
   // Store order data for next step
   context.conversationState = {
@@ -381,9 +399,9 @@ async function handleConfirmation(message, state) {
     // Create order in ERP
     return createOrderInERP(state.orderData);
   } else if (response === 'cancel' || response === 'no' || response === 'n' || response === '否' || response === '取消') {
-    return 'Order creation cancelled.';
+    return '訂單建立已取消。';
   } else {
-    return 'Please reply "confirm" to create order, or "cancel" to cancel.';
+    return '請回覆「確認」以建立訂單，或「取消」。';
   }
 }
 
@@ -407,7 +425,7 @@ async function handleCustomerChoice(message, state) {
       });
 
       if (!newCustomer.success) {
-        return `Failed to create customer: ${newCustomer.message}`;
+        return `建立客戶失敗：${newCustomer.message}`;
       }
 
       console.log('[Order] New customer created:', newCustomer.data.customerCode);
@@ -416,19 +434,19 @@ async function handleCustomerChoice(message, state) {
       return buildOrderConfirmation(state.parsedOrder, newCustomer.data, state);
 
     } catch (error) {
-      return `Error creating customer: ${error.message}`;
+      return `建立客戶時發生錯誤：${error.message}`;
     }
 
   } else if (choice === '2' || choice === '重新輸入' || choice === 'retry') {
     // Clear state and ask for customer name again
     delete state.waitingForCustomerChoice;
-    return `Please enter the correct customer name:`;
+    return `請輸入正確的客戶名稱：`;
 
   } else if (choice === '3' || choice === '取消' || choice === 'cancel') {
-    return 'Order creation cancelled.';
+    return '訂單建立已取消。';
 
   } else {
-    return 'Please reply:\n1️⃣ Create new customer\n2️⃣ Re-enter customer name\n3️⃣ Cancel';
+    return '請回覆：\n1️⃣ 建立新客戶\n2️⃣ 重新輸入客戶名稱\n3️⃣ 取消';
   }
 }
 
@@ -449,7 +467,7 @@ async function createOrderInERP(orderData) {
         productCode: item.name,
         productName: item.name,
         quantity: item.quantity,
-        unitPrice: 0  // Will be filled in ERP UI
+        unitPrice: item.price || 0  // Use parsed price or 0 if not specified
       })),
       paymentInfo: {
         method: customer.payment?.method || 'cash',
@@ -467,23 +485,33 @@ async function createOrderInERP(orderData) {
     });
 
     if (!result.success) {
-      return `Failed to create order: ${result.message || 'Unknown error'}`;
+      return `建立訂單失敗：${result.message || '未知錯誤'}`;
     }
 
     const orderNumber = result.data.orderNumber;
     const totalQty = parsedOrder.items.reduce((sum, i) => sum + i.quantity, 0);
+    const totalAmount = parsedOrder.items.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
+    
+    const itemsList = parsedOrder.items
+      .map(i => {
+        const priceInfo = i.price > 0 ? ` @ $${i.price}` : '';
+        return `  • ${i.name} × ${i.quantity}${priceInfo}`;
+      })
+      .join('\n');
 
-    return `✅ Order created successfully!\n`
+    return `✅ 訂單建立成功！\n`
       + `━━━━━━━━━━━━━━━━\n`
-      + `📋 Order #: ${orderNumber}\n`
-      + `👤 Customer: ${customer.name}\n`
-      + `📦 Items: ${totalQty} unit(s)\n`
-      + `⏱️ Status: Pending\n`
-      + `━━━━━━━━━━━━━━━━`;
+      + `📋 訂單編號：${orderNumber}\n`
+      + `👤 客戶：${customer.name}\n`
+      + `📦 品項：\n${itemsList}\n`
+      + `💰 總額：$${totalAmount}${totalAmount === 0 ? ' (待補價格)' : ''}\n`
+      + `⏱️ 狀態：待處理\n`
+      + `━━━━━━━━━━━━━━━━\n\n`
+      + `💡 提示：如需報價單，請使用「生成報價單 ${orderNumber}」`;
 
   } catch (error) {
     console.error('[Order] ERP creation error:', error);
-    return `System error: ${error.message}\nPlease contact support.`;
+    return `系統錯誤：${error.message}\n請聯絡客服。`;
   }
 }
 
