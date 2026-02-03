@@ -507,7 +507,7 @@ async function createOrderInERP(orderData) {
       + `💰 總額：$${totalAmount}${totalAmount === 0 ? ' (待補價格)' : ''}\n`
       + `⏱️ 狀態：待處理\n`
       + `━━━━━━━━━━━━━━━━\n\n`
-      + `💡 提示：如需報價單，請使用「生成報價單 ${orderNumber}」`;
+      + `💡 提示：如需出單，請輸入 /pdf ${orderNumber}`;
 
   } catch (error) {
     console.error('[Order] ERP creation error:', error);
