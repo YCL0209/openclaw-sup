@@ -1,3 +1,4 @@
+// test
 /**
  * Generate PDF Skill for Clawdbot + ERP Integration
  * 
@@ -18,9 +19,8 @@ const ERP_TAX_ID = process.env.ERP_TAX_ID || '00091103';
 const ERP_BOT_EMAIL = process.env.ERP_BOT_EMAIL || 'info@sui-yao.com';
 const ERP_BOT_PASSWORD = process.env.ERP_BOT_PASSWORD || '000000';
 
-// OpenClaw Gateway Configuration
-const OPENCLAW_GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || 'http://localhost:18789';
-const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN;
+// Canvas Host Configuration (for public image URLs)
+const CANVAS_PUBLIC_URL = process.env.CANVAS_PUBLIC_URL || 'https://suiyao.a.pinggy.link/__openclaw__/canvas';
 
 // ========================================
 // Token Management
@@ -108,48 +108,6 @@ async function erpFetch(path, options = {}) {
 }
 
 // ========================================
-// OpenClaw Message Integration
-// ========================================
-
-/**
- * 發送圖片到 LINE 用戶
- * 直接調用 OpenClaw Gateway 的 message API
- */
-async function sendImageToLineUser(imageUrl, userId, caption, channel = 'line') {
-  try {
-    console.log(`[PDF] Sending image to user ${userId}: ${imageUrl}`);
-    
-    const response = await fetch(`${OPENCLAW_GATEWAY_URL}/api/v1/message/send`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENCLAW_GATEWAY_TOKEN}`
-      },
-      body: JSON.stringify({
-        channel: channel,
-        to: userId,
-        mediaUrl: imageUrl,
-        caption: caption
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[PDF] Failed to send image: ${response.status} ${errorText}`);
-      return false;
-    }
-
-    const result = await response.json();
-    console.log(`[PDF] Image sent successfully:`, result);
-    return true;
-
-  } catch (error) {
-    console.error(`[PDF] Error sending image:`, error.message);
-    return false;
-  }
-}
-
-// ========================================
 // Main Function
 // ========================================
 
@@ -171,7 +129,7 @@ async function generatePDF(message, context) {
     const parsed = parseMessage(message);
     
     if (!parsed.orderNumber) {
-      return '請提供訂單編號。\n格式：生成報價單 ORD-260123-SA7M';
+      return '請提供訂單編號。\n格式：\n- 採購單：生成採購單 PUR-260202-5W1E\n- 銷售單：生成報價單 ORD-260123-SA7M';
     }
 
     console.log('[PDF] Parsed:', JSON.stringify(parsed, null, 2));
@@ -228,8 +186,8 @@ function parseMessage(message) {
     type: null
   };
 
-  // Extract order number (format: ORD-YYMMDD-XXXX)
-  const orderMatch = message.match(/ORD-\d{6}-[A-Z0-9]{4}/i);
+  // Extract order number (支援兩種格式：PUR-採購、ORD-銷售)
+  const orderMatch = message.match(/(?:PUR|ORD)-\d{6}-[A-Z0-9]{4}/i);
   if (orderMatch) {
     result.orderNumber = orderMatch[0].toUpperCase();
   }
@@ -337,7 +295,7 @@ async function generateAndSendPDF(orderId, orderNumber, type, order, context) {
     }
 
     // Step 5: Build public URLs and prepare simple response
-    const publicBaseUrl = 'https://suiyao.a.pinggy.link/__openclaw__/canvas';
+    const publicBaseUrl = CANVAS_PUBLIC_URL;
     const userId = context?.userId || context?.channelUserId;
     
     // 構建圖片 URL 列表
@@ -357,26 +315,27 @@ async function generateAndSendPDF(orderId, orderNumber, type, order, context) {
       console.log(`[PDF] Image ${i + 1}/${imageFiles.length}: ${publicUrl}`);
     }
 
-    // Step 6: 自動發送圖片到用戶
+    // Step 6: 返回圖片發送指令給 AI
     if (userId) {
-      console.log(`[PDF] Auto-sending ${imageFiles.length} image(s) to user ${userId}`);
+      console.log(`[PDF] Returning send instructions for ${imageFiles.length} image(s)`);
       
-      let successCount = 0;
-      for (const img of imageUrls) {
-        const sent = await sendImageToLineUser(img.url, userId, img.caption);
-        if (sent) successCount++;
-      }
+      // 返回 JSON 格式指令給 AI
+      const response = {
+        success: true,
+        action: 'send_images',
+        documentType: typeName,
+        orderNumber: orderNumber,
+        customerName: order.customerName,
+        totalPages: imageFiles.length,
+        userId: userId,
+        channel: 'line',
+        images: imageUrls.map(img => ({
+          url: img.url,
+          caption: img.caption
+        }))
+      };
       
-      if (successCount === imageUrls.length) {
-        return `✅ ${typeName}已生成並發送\n`
-          + `📋 ${orderNumber}\n`
-          + `👤 ${order.customerName}\n`
-          + `📄 共 ${imageFiles.length} 頁`;
-      } else {
-        return `✅ ${typeName}已生成\n`
-          + `⚠️ 圖片發送部分失敗（${successCount}/${imageFiles.length} 成功）\n`
-          + `📄 PDF 位置：${pdfPath}`;
-      }
+      return JSON.stringify(response, null, 2);
       
     } else {
       // 無 userId 時的簡單提示
