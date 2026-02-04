@@ -1,0 +1,15 @@
+# 環境變數（含密碼、API Key）
+.env
+skills/*/.env
+
+# 依賴
+node_modules/
+
+# macOS
+.DS_Store
+
+# 生成的圖片
+canvas/*.png
+
+# Claude Code
+.claude/
