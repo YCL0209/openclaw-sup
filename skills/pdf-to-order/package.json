@@ -1,0 +1,10 @@
+{
+  "name": "pdf-to-order",
+  "version": "1.0.0",
+  "description": "Parse PDF quotations and create ERP orders",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

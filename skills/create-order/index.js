@@ -15,9 +15,9 @@
 // ========================================
 
 const ERP_API_BASE = process.env.ERP_API_URL || 'http://localhost:3000';
-const ERP_TAX_ID = process.env.ERP_TAX_ID || '12345678';
-const ERP_BOT_EMAIL = process.env.ERP_BOT_EMAIL || 'bot@yourcompany.com';
-const ERP_BOT_PASSWORD = process.env.ERP_BOT_PASSWORD || '';
+const ERP_TAX_ID = process.env.ERP_TAX_ID || '00091103';
+const ERP_BOT_EMAIL = process.env.ERP_BOT_EMAIL || 'info@sui-yao.com';
+const ERP_BOT_PASSWORD = process.env.ERP_BOT_PASSWORD || '000000';
 
 // ========================================
 // Token Management
@@ -169,17 +169,27 @@ async function createOrder(message, context, claudeApi) {
         + '範例："/order 王小明 A產品x2 B產品x1"';
     }
 
+    // Ensure orderType is set from original message (safety net)
+    if (!parsed.orderType) {
+      const purchaseKeywords = ['採購', '採購單', '我要買', '買', 'purchase'];
+      parsed.orderType = purchaseKeywords.some(kw => message.includes(kw)) ? 'purchase' : 'sales';
+    }
+
     console.log('[Order] Parsed order:', JSON.stringify(parsed, null, 2));
 
-    // Step 2: Query customer from ERP
+    // Step 2: Query customer from ERP (使用後端搜尋，支援 name + taxId)
     console.log('[Order] Querying customer:', parsed.customerName);
-    const customers = await erpFetch('/api/customers');
+    const searchQuery = encodeURIComponent(parsed.customerName);
+    const customers = await erpFetch(`/api/customers?search=${searchQuery}`);
     
     if (!customers.success) {
       return '無法連接 ERP 系統。請稍後再試。';
     }
 
-    const matchedCustomer = findCustomer(parsed.customerName, customers.data);
+    // 後端已經搜尋過 name + taxId，直接取第一個結果或本地二次驗證
+    const matchedCustomer = customers.data && customers.data.length > 0
+      ? findCustomer(parsed.customerName, customers.data)
+      : null;
 
     if (!matchedCustomer) {
       // Customer not found - ask user what to do
@@ -217,22 +227,26 @@ async function parseOrderMessage(message, claudeApi) {
   if (claudeApi && claudeApi.complete) {
     try {
       const response = await claudeApi.complete({
-        prompt: `Parse this order message and extract customer name, items, quantity, price, address, and notes.
-        
+        prompt: `Parse this order message and extract order type, customer name, items, quantity, price, address, and notes.
+
 Message: "${message}"
 
 Return JSON with format:
 {
+  "orderType": "sales" or "purchase",
   "customerName": "customer name",
-  "items": [{"name": "product name", "quantity": number, "price": number or 0}, ...],
+  "items": [{"name": "product code or name", "quantity": number, "price": number or 0}, ...],
   "address": "address or null",
   "note": "notes or null",
   "confidence": 0.0 to 1.0
 }
 
-Price format examples:
-- "ABC電線x1@500" → price: 500
-- "ABC電線x1" → price: 0 (not specified)
+Important rules:
+- orderType: 含「採購」「採購單」「我要買」「買」「purchase」→ "purchase", 含「訂購」「下單」「我要訂」「建單」→ "sales"
+- Product codes like PRO-183, PRO-456 are COMPLETE product codes. Do NOT split them. "PRO-183" is ONE item name, not "PRO-" and "183".
+- Quantity formats: "x30", "×30", "數量30", "30個", "30" after product name → quantity: 30
+- Price format: "ABC@500" or "ABC 單價500" → price: 500, if not specified → price: 0
+- "百凌" or "百凌的" is a customer name, not a product
 
 Only return valid JSON, no other text.`,
         max_tokens: 500
@@ -264,35 +278,72 @@ function simpleParseOrder(message) {
     return null;
   }
 
-  // Try to extract customer name (usually first few words before items)
-  // and items (patterns with optional price: "product x2@500" or "product x2" or "product 2")
-  
-  const items = [];
-  const itemPatterns = [
-    /([^x@,，]*?)x(\d+)(?:@(\d+))?/gi,           // A产品x2@500 or A产品x2
-    /(\d+)\s*(?:个)?([^,，\d@]+)(?:@(\d+))?/gi,  // 2个A产品@500 or 2个A产品
-    /([^,，\d@]+?)\s*(\d+)(?:@(\d+))?/gi         // A产品 2@500 or A产品 2
-  ];
+  // Detect order type first
+  const purchaseKeywords = ['採購', '採購單', '我要買', '買', 'purchase'];
+  const orderType = purchaseKeywords.some(kw => message.includes(kw)) ? 'purchase' : 'sales';
 
-  let itemsText = text;
+  // Extract items with improved patterns
+  // Strategy: Try multiple patterns and combine results
+  const items = [];
+  let remainingText = text;
+  const processedRanges = []; // Track matched text positions to avoid duplicates
   
-  for (const pattern of itemPatterns) {
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const product = match[1]?.trim() || match[2]?.trim();
-      const qty = parseInt(match[2] || match[match.length - 2]);
-      const price = match[3] ? parseInt(match[3]) : 0;
-      
-      if (product && !isNaN(qty) && qty > 0) {
-        // Check if not already added
-        if (!items.find(i => i.name.toLowerCase() === product.toLowerCase())) {
-          items.push({ 
-            name: product, 
-            quantity: qty,
-            price: price || 0
-          });
-          itemsText = itemsText.replace(match[0], '');
-        }
+  // Pattern 1: PRO-XXX format with quantity and optional price (most specific)
+  // Examples: "PRO-183 數量30", "PRO-183 × 30", "PRO-183 x30@200", "PRO-183 30個"
+  const proPattern = /(PRO-\d+)\s*(?:[x×]|數量)?\s*(\d+)(?:個)?(?:@(\d+))?/gi;
+  let match;
+  while ((match = proPattern.exec(text)) !== null) {
+    items.push({
+      name: match[1],
+      quantity: parseInt(match[2]),
+      price: match[3] ? parseInt(match[3]) : 0  // ← 解析 @price
+    });
+    processedRanges.push({ start: match.index, end: match.index + match[0].length });
+    remainingText = remainingText.replace(match[0], ' '); // Replace with space to keep text structure
+  }
+
+  // Pattern 2: General product format "ProductName x Quantity @ Price"
+  // Examples: "蘋果x5@100", "香蕉 × 3", "螺絲x10"
+  // This pattern should NOT match text that was already matched by PRO- pattern
+  const generalPattern = /([^\sx@,，\d]+)\s*[x×]\s*(\d+)(?:@(\d+))?/gi;
+  remainingText = text; // Reset to original text
+  while ((match = generalPattern.exec(text)) !== null) {
+    // Check if this match overlaps with already processed PRO- ranges
+    const matchStart = match.index;
+    const matchEnd = match.index + match[0].length;
+    const overlaps = processedRanges.some(range => 
+      (matchStart >= range.start && matchStart < range.end) ||
+      (matchEnd > range.start && matchEnd <= range.end)
+    );
+    
+    if (!overlaps) {
+      const productName = match[1].trim();
+      // Filter out noise words and very short names
+      if (productName.length >= 2 && 
+          !['我要', '給我', '幫我', '數量'].includes(productName) &&
+          !items.find(i => i.name === productName)) {
+        items.push({
+          name: productName,
+          quantity: parseInt(match[2]),
+          price: match[3] ? parseInt(match[3]) : 0
+        });
+        processedRanges.push({ start: matchStart, end: matchEnd });
+      }
+    }
+  }
+  
+  // Pattern 3: Fallback for "Quantity + Product" format
+  // Examples: "30個蘋果", "5 香蕉"
+  if (items.length === 0) {
+    const qtyFirstPattern = /(\d+)\s*(?:個|件)?\s*([^\s,，\d]{2,})(?:@(\d+))?/gi;
+    while ((match = qtyFirstPattern.exec(text)) !== null) {
+      const productName = match[2].trim();
+      if (!['我要', '給我', '幫我', '數量'].includes(productName)) {
+        items.push({
+          name: productName,
+          quantity: parseInt(match[1]),
+          price: match[3] ? parseInt(match[3]) : 0
+        });
       }
     }
   }
@@ -301,25 +352,40 @@ function simpleParseOrder(message) {
     return null;
   }
 
-  // Extract customer name (remaining text before first item or comma)
-  const parts = itemsText.split(/[,，]/);
-  const customerName = parts[0]?.trim() || null;
-
-  // Extract address and notes (usually after items)
-  const address = null; // TODO: improve address extraction
-  const note = null;
+  // Extract customer name (look for common customer indicators)
+  let customerName = null;
+  
+  // Remove item text and common noise words
+  const cleanText = remainingText
+    .replace(/我要買|我要訂|下單|訂購|採購|給我|幫我/g, '')
+    .replace(/採購單|銷售單|訂單/g, '')
+    .trim();
+  
+  // Customer name is usually the remaining text (filter out very short strings)
+  const customerMatch = cleanText.match(/([^\s,，]{2,}(?:公司|工业|股份|有限)?)/);
+  if (customerMatch) {
+    customerName = customerMatch[1].replace(/的$/, ''); // Remove trailing 的
+  }
 
   return {
+    orderType,
     customerName,
     items,
-    address,
-    note,
+    address: null,
+    note: null,
     confidence: 0.7
   };
 }
 
 /**
  * Find matching customer from ERP customer list
+ */
+/**
+ * 本地二次驗證客戶匹配（後端已搜尋 name + taxId）
+ * 此函數用於：
+ * 1. 精確匹配客戶名稱
+ * 2. 匹配聯絡人（後端不支援）
+ * 3. 部分匹配（容錯）
  */
 function findCustomer(searchName, customers) {
   if (!searchName || !Array.isArray(customers)) {
@@ -328,17 +394,24 @@ function findCustomer(searchName, customers) {
 
   const search = searchName.toLowerCase().trim();
 
-  // Exact match on name
+  // 精確匹配客戶名稱
   let match = customers.find(c => c.name.toLowerCase() === search);
   if (match) return match;
 
-  // Exact match on contact person
+  // 精確匹配聯絡人（後端 search API 不支援，由本地處理）
   match = customers.find(c => c.contact && c.contact.toLowerCase() === search);
   if (match) return match;
 
-  // Partial match on name
+  // 部分匹配客戶名稱（容錯）
   match = customers.find(c => c.name.toLowerCase().includes(search) || search.includes(c.name.toLowerCase()));
   if (match) return match;
+
+  // 如果後端已經搜尋過，但本地驗證都不匹配，直接取第一個結果
+  // （後端可能用統編找到，但名稱不完全一樣）
+  if (customers.length > 0) {
+    console.log(`[Order] 使用後端搜尋結果第一筆: ${customers[0].name}`);
+    return customers[0];
+  }
 
   return null;
 }
@@ -373,7 +446,7 @@ function buildOrderConfirmation(parsedOrder, customer, context) {
     + `💳 付款：${paymentMethod}\n`
     + (parsedOrder.note ? `📝 備註：${parsedOrder.note}\n` : '')
     + `━━━━━━━━━━━━━━━━\n`
-    + `請回覆「確認」以建立訂單，或「取消」`;
+    + `請回覆「確認」以建立${parsedOrder.orderType === 'purchase' ? '採購單' : '銷售單'}，或「取消」`;
 
   // Store order data for next step
   context.conversationState = {
@@ -458,7 +531,7 @@ async function createOrderInERP(orderData) {
     const { parsedOrder, customer } = orderData;
 
     const orderPayload = {
-      orderType: 'sales',
+      orderType: parsedOrder.orderType || 'sales',
       customerId: orderData.customerId,
       customerName: customer.name,
       customerPhone: customer.phone || parsedOrder.phone || '',
@@ -499,7 +572,9 @@ async function createOrderInERP(orderData) {
       })
       .join('\n');
 
-    return `✅ 訂單建立成功！\n`
+    const typeName = parsedOrder.orderType === 'purchase' ? '採購單' : '銷售單';
+
+    return `✅ ${typeName}建立成功！\n`
       + `━━━━━━━━━━━━━━━━\n`
       + `📋 訂單編號：${orderNumber}\n`
       + `👤 客戶：${customer.name}\n`
@@ -507,7 +582,7 @@ async function createOrderInERP(orderData) {
       + `💰 總額：$${totalAmount}${totalAmount === 0 ? ' (待補價格)' : ''}\n`
       + `⏱️ 狀態：待處理\n`
       + `━━━━━━━━━━━━━━━━\n\n`
-      + `💡 提示：如需出單，請輸入 /pdf ${orderNumber}`;
+      + `📄 是否需要立即生成${typeName} PDF？回覆「是」即可生成`;
 
   } catch (error) {
     console.error('[Order] ERP creation error:', error);

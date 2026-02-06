@@ -18,9 +18,9 @@ const LABEL_HEIGHT = parseInt(process.env.LABEL_HEIGHT) || 30;
 
 // ERP config (for product label lookup)
 const ERP_API_BASE = process.env.ERP_API_URL || 'http://localhost:3000';
-const ERP_TAX_ID = process.env.ERP_TAX_ID || '12345678';
-const ERP_BOT_EMAIL = process.env.ERP_BOT_EMAIL || 'bot@yourcompany.com';
-const ERP_BOT_PASSWORD = process.env.ERP_BOT_PASSWORD || '';
+const ERP_TAX_ID = process.env.ERP_TAX_ID || '00091103';
+const ERP_BOT_EMAIL = process.env.ERP_BOT_EMAIL || 'info@sui-yao.com';
+const ERP_BOT_PASSWORD = process.env.ERP_BOT_PASSWORD || '000000';
 
 // Layout defaults (mm)
 const MARGIN_LEFT = 5;

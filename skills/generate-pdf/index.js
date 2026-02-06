@@ -118,18 +118,27 @@ async function generatePDF(message, context) {
   try {
     console.log('[PDF] Processing message:', message);
 
-    // Check if this is a follow-up (waiting for type selection)
+    // Check if this is a follow-up
     const state = context.conversationState || {};
-    
+
+    if (state.waitingForOrderSelection) {
+      return handleOrderSelection(message, state, context);
+    }
+
     if (state.waitingForPdfType) {
       return handleTypeSelection(message, state, context);
     }
 
-    // Parse order number and document type from message
+    // Parse order number, product number, and document type from message
     const parsed = parseMessage(message);
-    
+
+    // Product number path: search orders by product code
+    if (!parsed.orderNumber && parsed.productNumber) {
+      return handleProductLookup(parsed.productNumber, parsed, context);
+    }
+
     if (!parsed.orderNumber) {
-      return '請提供訂單編號。\n格式：\n- 採購單：生成採購單 PUR-260202-5W1E\n- 銷售單：生成報價單 ORD-260123-SA7M';
+      return '請提供訂單編號或品號。\n格式：\n- 訂單：生成採購單 PUR-260202-5W1E\n- 訂單：生成報價單 ORD-260123-SA7M\n- 品號：生成採購單 PRO-183';
     }
 
     console.log('[PDF] Parsed:', JSON.stringify(parsed, null, 2));
@@ -183,6 +192,7 @@ async function generatePDF(message, context) {
 function parseMessage(message) {
   const result = {
     orderNumber: null,
+    productNumber: null,
     type: null
   };
 
@@ -190,6 +200,14 @@ function parseMessage(message) {
   const orderMatch = message.match(/(?:PUR|ORD)-\d{6}-[A-Z0-9]{4}/i);
   if (orderMatch) {
     result.orderNumber = orderMatch[0].toUpperCase();
+  }
+
+  // Extract product number (PRO-NNN format, only if no order number found)
+  if (!result.orderNumber) {
+    const productMatch = message.match(/PRO-\d+/i);
+    if (productMatch) {
+      result.productNumber = productMatch[0].toUpperCase();
+    }
   }
 
   // Detect document type
@@ -202,6 +220,141 @@ function parseMessage(message) {
   }
 
   return result;
+}
+
+/**
+ * Auto-detect document type from order number prefix
+ * PUR- → purchase, ORD- → null (user must choose quotation or sales)
+ */
+function autoDetectType(orderNumber, requestedType) {
+  if (requestedType) return requestedType;
+  if (orderNumber.startsWith('PUR-')) return 'purchase';
+  return null;
+}
+
+/**
+ * Search orders containing a specific product number
+ */
+async function findOrdersByProduct(productNumber) {
+  console.log(`[PDF] Searching orders for product: ${productNumber}`);
+
+  const data = await erpFetch(`/api/orders?search=${encodeURIComponent(productNumber)}`);
+
+  if (!data.success || !data.data) return [];
+
+  // Filter to confirm items actually contain the product code
+  return data.data.filter(order =>
+    order.items && order.items.some(item =>
+      item.productCode === productNumber || item.productName === productNumber
+    )
+  );
+}
+
+/**
+ * Handle product number lookup flow
+ */
+async function handleProductLookup(productNumber, parsed, context) {
+  const orders = await findOrdersByProduct(productNumber);
+
+  if (orders.length === 0) {
+    return `找不到品號「${productNumber}」的相關訂單。\n請確認品號是否正確，或使用訂單編號查詢。`;
+  }
+
+  // Single order found
+  if (orders.length === 1) {
+    const order = orders[0];
+    const type = autoDetectType(order.orderNumber, parsed.type);
+
+    if (type) {
+      return await generateAndSendPDF(order._id, order.orderNumber, type, order, context);
+    }
+
+    // ORD- order without specified type → ask user
+    const state = context.conversationState || {};
+    context.conversationState = {
+      ...state,
+      waitingForPdfType: true,
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      order: order
+    };
+
+    return `✅ 品號 ${productNumber} 找到訂單 ${order.orderNumber}\n`
+      + `━━━━━━━━━━━━━━━━\n`
+      + `👤 客戶：${order.customerName}\n`
+      + `💰 總額：NT$ ${(order.totalAmount || 0).toLocaleString()}\n`
+      + `\n請選擇單據類型：\n`
+      + `1️⃣ 報價單 (quotation)\n`
+      + `2️⃣ 採購單 (purchase)\n`
+      + `3️⃣ 銷貨單 (sales)\n`
+      + `\n請回覆數字 1-3`;
+  }
+
+  // Multiple orders found → ask user to choose
+  const state = context.conversationState || {};
+  context.conversationState = {
+    ...state,
+    waitingForOrderSelection: true,
+    matchedOrders: orders,
+    productNumber: productNumber,
+    requestedType: parsed.type
+  };
+
+  let msg = `品號 ${productNumber} 找到 ${orders.length} 筆訂單：\n`;
+  msg += `━━━━━━━━━━━━━━━━\n`;
+
+  orders.forEach((order, i) => {
+    const typeLabel = order.orderNumber.startsWith('PUR-') ? '採購' : '銷售';
+    msg += `${i + 1}. ${order.orderNumber} (${typeLabel})\n`;
+    msg += `   👤 ${order.customerName}\n`;
+    msg += `   💰 NT$ ${(order.totalAmount || 0).toLocaleString()}\n`;
+  });
+
+  msg += `━━━━━━━━━━━━━━━━\n`;
+  msg += `請回覆數字選擇訂單`;
+
+  return msg;
+}
+
+/**
+ * Handle user selection from multiple orders
+ */
+async function handleOrderSelection(message, state, context) {
+  const choice = parseInt(message.trim());
+
+  if (isNaN(choice) || choice < 1 || choice > state.matchedOrders.length) {
+    return `請回覆 1-${state.matchedOrders.length} 選擇訂單。`;
+  }
+
+  const order = state.matchedOrders[choice - 1];
+  const type = autoDetectType(order.orderNumber, state.requestedType);
+
+  // Clear order selection state
+  delete context.conversationState.waitingForOrderSelection;
+  delete context.conversationState.matchedOrders;
+
+  if (type) {
+    return await generateAndSendPDF(order._id, order.orderNumber, type, order, context);
+  }
+
+  // ORD- order, need type selection
+  context.conversationState = {
+    ...context.conversationState,
+    waitingForPdfType: true,
+    orderId: order._id,
+    orderNumber: order.orderNumber,
+    order: order
+  };
+
+  return `✅ 選擇訂單 ${order.orderNumber}\n`
+    + `━━━━━━━━━━━━━━━━\n`
+    + `👤 客戶：${order.customerName}\n`
+    + `💰 總額：NT$ ${(order.totalAmount || 0).toLocaleString()}\n`
+    + `\n請選擇單據類型：\n`
+    + `1️⃣ 報價單 (quotation)\n`
+    + `2️⃣ 採購單 (purchase)\n`
+    + `3️⃣ 銷貨單 (sales)\n`
+    + `\n請回覆數字 1-3`;
 }
 
 /**
@@ -360,5 +513,6 @@ async function generateAndSendPDF(orderId, orderNumber, type, order, context) {
 module.exports = {
   generatePDF,
   parseMessage,
-  generateAndSendPDF
+  generateAndSendPDF,
+  findOrdersByProduct,
 };

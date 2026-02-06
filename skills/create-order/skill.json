@@ -21,7 +21,11 @@
     "新訂單",
     "開訂單",
     "幫我訂",
-    "order"
+    "order",
+    "我要買",
+    "採購",
+    "建立採購單",
+    "purchase"
   ],
   "author": "Clawdbot",
   "license": "MIT"

@@ -48,6 +48,35 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - `trash` > `rm` (recoverable beats gone forever)
 - When in doubt, ask.
 
+## 📊 Token Management
+
+**Context window**: 200k tokens (Claude Sonnet 4.5)
+
+**Monitor usage actively:**
+- **Green zone** (0-150k): Normal operation
+- **Yellow zone** (150k-180k): Start wrapping up, suggest new session if deep work ahead
+- **Red zone** (180k-200k): Warn user, prioritize short responses, avoid long operations
+
+**When approaching limits:**
+1. Alert user: "⚠️ 我們接近 token 上限了（已使用 X/200k）。建議："
+   - 如果快結束了 → 繼續
+   - 如果還有長任務 → 建議開新會話
+   - 如果要貼大段程式碼/文件 → 先警告
+2. Avoid triggering long tool outputs (large file reads, long exec commands)
+3. Keep responses concise
+
+**What causes token spikes:**
+- Reading large files
+- Long exec output
+- Pasting large code blocks
+- Deep file tree exploration
+- Multiple skill reads
+
+**Recovery options:**
+- Start new session
+- User can use `/compact` (if available)
+- Export important context to files before restarting
+
 ## External vs Internal
 
 **Safe to do freely:**
