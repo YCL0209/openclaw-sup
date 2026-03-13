@@ -48,6 +48,29 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - `trash` > `rm` (recoverable beats gone forever)
 - When in doubt, ask.
 
+### 🔒 多用戶任務安全規則
+
+每則訊息都帶有 `sender_id`（在 conversation metadata 中）。你**必須**遵守以下規則：
+
+**建立任務時：**
+- 在任務描述或 metadata 中記錄 `created_by: <sender_id>`
+- 這是任務的「擁有者」
+
+**修改/刪除任務前：**
+- 比對目前 `sender_id` 是否為任務的 `created_by`
+- **是** → 允許操作
+- **不是** → 拒絕，回覆「這不是你建立的任務，無法修改/刪除」
+- **管理員例外**：sender_id 為 `8331678146`（Telegram）或 `U091884e59e8027a8007b351c13f1b557`（LINE）為管理員，可操作所有任務
+
+**查詢任務：**
+- 預設只列出該 `sender_id` 建立的任務
+- 管理員可查看所有任務
+
+**絕對禁止：**
+- 不可將 A 用戶的私人資訊洩漏給 B 用戶
+- 不可讓非管理員批量刪除任務
+- 不可繞過 sender_id 檢查
+
 ## External vs Internal
 
 **Safe to do freely:**
