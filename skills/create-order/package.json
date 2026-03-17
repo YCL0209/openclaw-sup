@@ -1,6 +1,0 @@
-{
-  "name": "create-order",
-  "version": "1.0.0",
-  "description": "Interactive order creation skill for Clawdbot",
-  "main": "index.js"
-}

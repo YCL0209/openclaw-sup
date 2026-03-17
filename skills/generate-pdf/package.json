@@ -1,6 +1,0 @@
-{
-  "name": "generate-pdf",
-  "version": "1.0.0",
-  "description": "Generate order PDF documents (quotation, purchase, sales) from ERP system",
-  "main": "index.js"
-}

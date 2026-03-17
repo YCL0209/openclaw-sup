@@ -1,7 +1,0 @@
-{
-  "name": "check-email",
-  "version": "1.0.0",
-  "description": "檢查 Gmail 未讀信件，去重後通知",
-  "entry": "index.js",
-  "triggers": ["查信", "檢查信件", "有沒有新信", "check email", "查看信箱"]
-}
