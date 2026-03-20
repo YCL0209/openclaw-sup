@@ -48,6 +48,21 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - `trash` > `rm` (recoverable beats gone forever)
 - When in doubt, ask.
 
+### ⚠ 修改設定檔鐵則（強制執行）
+
+每次修改設定檔前，必須遵循以下流程：
+1. **查證** - 先去官網確認指令是否正確
+2. **驗證** - 用 Python 驗證 JSON 語法格式
+3. **評估風險** - 評估可能會出什麼錯、影響什麼、如何復原
+4. **請求確認** - 重大操作前必須向老闆確認才能進行下一步
+5. **備份設定檔** - 備份設定檔（加上日期時間）後才能執行
+
+**哪些是重大操作：**
+- 修改設定檔（openclaw.json, models.json 等）
+- 重啟服務
+- 刪除資料
+- 安裝/移除 plugins
+
 ### 🔒 多用戶任務安全規則
 
 每則訊息都帶有 `sender_id`（在 conversation metadata 中）。你**必須**遵守以下規則：

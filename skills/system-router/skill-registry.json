@@ -1,0 +1,22 @@
+{
+  "email": {
+    "script": "workspace-reminder/skills/check-email/index.js",
+    "description": "查信 + 去重"
+  },
+  "erp": {
+    "script": "workspace-erp/skills/create-order/index.js",
+    "description": "PDF 提取 + 建立訂單"
+  },
+  "label": {
+    "script": "workspace-erp/skills/print-label/index.js",
+    "description": "產生標籤"
+  },
+  "pdf": {
+    "script": "workspace-erp/skills/generate-pdf/index.js",
+    "description": "產生 PDF"
+  },
+  "reminder": {
+    "script": "workspace-reminder/skills/set-reminder/index.js",
+    "description": "設定提醒"
+  }
+}
