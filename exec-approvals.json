@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "socket": {
+    "path": "/Users/liaoyacheng/.openclaw/exec-approvals.sock",
+    "token": "YOUR_SOCKET_TOKEN"
+  },
+  "defaults": {},
+  "agents": {
+    "dev": {
+      "allowlist": [
+        {
+          "pattern": "node /Users/liaoyacheng/.openclaw/workspace/skills/system-router/index.js *",
+          "lastUsedAt": 1773724838624,
+          "id": "6bdd20d8-c515-4eb6-950b-e47783544ab1"
+        },
+        {
+          "pattern": "node /Users/liaoyacheng/.openclaw/lib/mongodb-tools/index.js *",
+          "lastUsedAt": 1773724844468
+        }
+      ]
+    }
+  }
+}

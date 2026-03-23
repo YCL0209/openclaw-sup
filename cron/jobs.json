@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "29e522b4-f8d7-4c2e-900a-975119085a63",
+      "name": "scheduler-heartbeat",
+      "enabled": false,
+      "createdAtMs": 1773979802353,
+      "updatedAtMs": 1774235832840,
+      "schedule": {
+        "kind": "every",
+        "everyMs": 3600000,
+        "anchorMs": 1773979802353
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "exec: cd ~/.openclaw/workspace && node scripts/scheduler.js"
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "state": {
+        "lastRunAtMs": 1774235820680,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 12160,
+        "lastDeliveryStatus": "not-delivered",
+        "consecutiveErrors": 0,
+        "lastDelivered": false
+      }
+    },
+    {
+      "id": "7d58fa52-acdb-448d-ad76-8fa79325df25",
+      "name": "scheduler-heartbeat",
+      "enabled": true,
+      "createdAtMs": 1774237328927,
+      "updatedAtMs": 1774242712208,
+      "schedule": {
+        "kind": "every",
+        "everyMs": 3600000,
+        "anchorMs": 1774237328927
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "exec: cd ~/.openclaw/workspace && node scripts/scheduler.js"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last"
+      },
+      "state": {
+        "nextRunAtMs": 1774244528934,
+        "lastRunAtMs": 1774240928934,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 14665,
+        "lastError": "Channel is required when multiple channels are configured: telegram, line Set delivery.channel explicitly or use a main session with a previous channel.",
+        "lastDeliveryStatus": "unknown",
+        "consecutiveErrors": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,318 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.3.12",
+    "lastTouchedAt": "2026-03-18T17:01:44.163Z"
+  },
+  "wizard": {
+    "lastRunAt": "2026-03-18T03:12:45.512Z",
+    "lastRunVersion": "2026.3.12",
+    "lastRunCommand": "onboard",
+    "lastRunMode": "local"
+  },
+  "auth": {
+    "profiles": {
+      "anthropic:default": {
+        "provider": "anthropic",
+        "mode": "token"
+      },
+      "anthropic:manual": {
+        "provider": "anthropic",
+        "mode": "token"
+      },
+      "ollama:cloud": {
+        "provider": "ollama",
+        "mode": "token"
+      },
+      "openai-codex:default": {
+        "provider": "openai-codex",
+        "mode": "oauth"
+      }
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://127.0.0.1:11434",
+        "apiKey": "ollama-local",
+        "api": "ollama",
+        "models": [
+          {
+            "id": "minimax-m2.5:cloud",
+            "name": "minimax-m2.5:cloud",
+            "reasoning": true,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 204800
+          }
+        ]
+      },
+      "openai": {
+        "baseUrl": "https://api.openai.com/v1",
+        "apiKey": "YOUR_OPENAI_API_KEY",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "gpt-4o-mini",
+            "name": "GPT-4o Mini",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "contextWindow": 128000,
+            "maxTokens": 16384
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "anthropic/gpt-plus",
+        "fallbacks": []
+      },
+      "models": {
+        "openai/gpt-4o-mini": {
+          "alias": "gpt4o"
+        },
+        "anthropic/gpt-plus": {}
+      },
+      "workspace": "/Users/liaoyacheng/.openclaw/workspace",
+      "contextPruning": {
+        "mode": "cache-ttl",
+        "ttl": "5m"
+      },
+      "compaction": {
+        "mode": "safeguard",
+        "reserveTokensFloor": 30000,
+        "memoryFlush": {
+          "enabled": true,
+          "softThresholdTokens": 6000
+        }
+      },
+      "heartbeat": {
+        "every": "30m",
+        "model": "openai/gpt-4o-mini",
+        "target": "last",
+        "directPolicy": "block",
+        "activeHours": { "start": "08:00", "end": "22:00" }
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    },
+    "list": [
+      {
+        "id": "dev",
+        "default": true,
+        "name": "穗鈅助手",
+        "workspace": "/Users/liaoyacheng/.openclaw/workspace",
+        "model": {
+          "primary": "openai/gpt-4o-mini"
+        },
+        "tools": {
+          "allow": [
+            "exec",
+            "read",
+            "message",
+            "session_status",
+            "sessions_list",
+            "sessions_history",
+            "image",
+            "group:memory"
+          ]
+        }
+      }
+    ]
+  },
+  "tools": {
+    "profile": "coding",
+    "allow": [
+      "exec",
+      "read",
+      "write",
+      "edit",
+      "apply_patch",
+      "message",
+      "session_status",
+      "sessions_list",
+      "sessions_history",
+      "image",
+      "group:memory"
+    ],
+    "web": {
+      "search": {
+        "enabled": false
+      }
+    }
+  },
+  "bindings": [
+    {
+      "agentId": "dev",
+      "match": {
+        "channel": "telegram",
+        "accountId": "default"
+      }
+    }
+  ],
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "session": {
+    "dmScope": "per-channel-peer",
+    "resetTriggers": [
+      "/new",
+      "/reset"
+    ],
+    "reset": {
+      "mode": "daily",
+      "atHour": 4,
+      "idleMinutes": 240
+    },
+    "resetByType": {
+      "direct": {
+        "mode": "daily",
+        "atHour": 4,
+        "idleMinutes": 240
+      },
+      "group": {
+        "mode": "idle",
+        "idleMinutes": 120
+      }
+    },
+    "maintenance": {
+      "mode": "enforce",
+      "pruneAfter": "14d",
+      "maxEntries": 200
+    }
+  },
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "boot-md": {
+          "enabled": true
+        },
+        "command-logger": {
+          "enabled": true
+        },
+        "session-memory": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "channels": {
+    "telegram": {
+      "capabilities": {
+        "inlineButtons": "dm"
+      },
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "groupPolicy": "allowlist",
+      "streaming": "partial",
+      "accounts": {
+        "default": {
+          "dmPolicy": "pairing",
+          "botToken": "YOUR_TELEGRAM_BOT_TOKEN",
+          "groupPolicy": "allowlist",
+          "streaming": "partial"
+        }
+      }
+    },
+    "line": {
+      "channelAccessToken": "YOUR_LINE_CHANNEL_ACCESS_TOKEN",
+      "channelSecret": "YOUR_LINE_CHANNEL_SECRET",
+      "dmAllowlist": [
+        "U091884e59e8027a8007b351c13f1b557",
+        "U86b3337e752a12d940758f9f35117e3c"
+      ],
+      "dmPolicy": "pairing",
+      "enabled": true,
+      "mediaDownloadPath": "/Users/liaoyacheng/.openclaw/workspace/downloads",
+      "mediaMaxMb": 20,
+      "retry": {
+        "attempts": 5,
+        "jitter": 0.3,
+        "maxDelayMs": 10000,
+        "minDelayMs": 1000
+      },
+      "webhookPath": "/line/webhook"
+    }
+  },
+  "canvasHost": {
+    "enabled": true,
+    "root": "/Users/liaoyacheng/.openclaw/workspace/canvas",
+    "port": 18790
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "YOUR_GATEWAY_TOKEN"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    }
+  },
+  "skills": {
+    "load": {
+      "watch": true,
+      "watchDebounceMs": 250
+    },
+    "install": {
+      "nodeManager": "npm"
+    },
+    "entries": {
+      "check-email": {
+        "enabled": true
+      },
+      "create-order": {
+        "enabled": true
+      },
+      "generate-pdf": {
+        "enabled": true
+      },
+      "mongodb-query": {
+        "enabled": true
+      },
+      "pdf-to-order": {
+        "enabled": true
+      },
+      "print-label": {
+        "enabled": true
+      },
+      "system-router": {
+        "enabled": true
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "line": {
+        "enabled": true
+      },
+      "telegram": {
+        "enabled": true
+      }
+    }
+  }
+}

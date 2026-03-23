@@ -1,0 +1,17 @@
+{
+  "name": "print-label",
+  "displayName": "標籤列印",
+  "description": "透過精臣標籤機列印標籤（文字、條碼、QR Code）",
+  "commands": {
+    "/print-label": {
+      "export": "printLabel",
+      "file": "index.js"
+    }
+  },
+  "triggers": [
+    "列印標籤", "印標籤", "標籤列印", "印貼紙",
+    "print label", "印 標籤", "列印貼紙"
+  ],
+  "author": "Clawdbot",
+  "license": "MIT"
+}

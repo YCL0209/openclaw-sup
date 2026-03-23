@@ -13,3 +13,53 @@ canvas/*.png
 
 # Claude Code
 .claude/
+
+# Logs
+logs/
+
+# Backups
+backups/
+
+# Credentials (sensitive)
+credentials/
+
+# Delivery queue (runtime data)
+delivery-queue/
+
+# Cron runtime data
+cron/runs/
+cron/*.bak
+
+# Shell completions (auto-generated)
+completions/
+
+# Session data (runtime, large)
+agents/*/sessions/
+
+# Embedded repos
+Star-Office-UI/
+workspace/
+
+# Devices (runtime)
+devices/
+
+# Temp files
+*.tmp
+
+# Memory SQLite databases
+memory/*.sqlite
+
+# Backup files
+*.bak
+
+# Subagents runtime
+subagents/
+
+# Telegram (sensitive bot data)
+telegram/
+
+# Identity (sensitive)
+identity/
+
+# Update check
+update-check.json
