@@ -36,7 +36,11 @@
 ### params 格式（嚴格遵守）
 - email: `{"action":"check"}`
 - erp: `{"action":"create","customerName":"...","items":[...]}`
-- reminder: `{"content":"提醒內容","remindAt":"2026-03-20T09:00:00+08:00"}`
+- reminder（單次）: `{"content":"提醒內容","remindAt":"2026-03-20T09:00:00+08:00"}`
+- reminder（每天）: `{"content":"記得運動","remindAt":"2026-03-20T08:00:00+08:00","repeat":"daily"}`
+- reminder（每週）: `{"content":"週會","remindAt":"2026-03-20T14:00:00+08:00","repeat":"weekly","weekdays":"1,3,5"}`
+- reminder（每月）: `{"content":"繳房租","remindAt":"2026-04-01T09:00:00+08:00","repeat":"monthly","dayOfMonth":"1"}`
+- reminder（自訂間隔）: `{"content":"喝水","remindAt":"2026-03-20T09:00:00+08:00","repeat":"interval","intervalMs":"10800000"}`
 - query（任務狀態）: `{"source":"task_status"}`
 - query（通知）: `{"source":"notifications"}`
 - query（定時任務列表）: `{"source":"scheduled_tasks"}`
@@ -44,6 +48,8 @@
 - query（恢復定時任務）: `{"source":"resume_task","taskId":"email-check-user-A"}`
 - query（改間隔）: `{"source":"update_interval","taskId":"email-check-user-A","interval":"300000"}`
 - query（建立定時任務）: `{"source":"create_task","taskType":"email-check","interval":"600000","config":{"chatId":"8331678146","account":"info@sui-yao.com"}}`
+- query（取消提醒）: `{"source":"cancel_reminder","content":"運動"}`
+- query（查詢提醒）: `{"source":"list_reminders"}`
 - query（刪除定時任務）: `{"source":"delete_task","taskId":"email-check-user-A"}`
 - chat: 不需要 params
 

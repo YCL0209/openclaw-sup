@@ -118,6 +118,31 @@ async function handleQuery(params, userId) {
     return { ok: true, action: 'query', data: { deleted: result.deletedCount, message: '已刪除' } };
   }
 
+  if (source === 'cancel_reminder') {
+    const { ObjectId } = require('mongodb');
+    let filter;
+    if (params.reminderId) {
+      filter = { _id: new ObjectId(params.reminderId) };
+    } else if (params.content) {
+      filter = { content: { $regex: params.content, $options: 'i' }, status: 'pending' };
+    } else {
+      return { ok: false, error: '需要 reminderId 或 content 來取消提醒' };
+    }
+    const result = await db.collection('reminders').updateOne(
+      filter,
+      { $set: { status: 'cancelled', cancelledAt: new Date() } }
+    );
+    return { ok: true, action: 'query', data: { modified: result.modifiedCount, message: result.modifiedCount ? '已取消提醒' : '找不到符合的提醒' } };
+  }
+
+  if (source === 'list_reminders') {
+    const reminders = await db.collection('reminders')
+      .find({ status: 'pending', userId: userId || undefined })
+      .sort({ remindAt: 1 }).limit(20).toArray();
+    for (const r of reminders) r._id = r._id.toString();
+    return { ok: true, action: 'query', data: { count: reminders.length, reminders } };
+  }
+
   // default: scan notifications
   const query = { delivered: false };
   if (userId) query.userId = userId;
